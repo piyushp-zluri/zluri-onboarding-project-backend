@@ -1,7 +1,7 @@
 {
-  "name": "transactions-project",
+  "name": "zluri-onboarding-project-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Postman collection link: https://www.postman.com/navigation-explorer-8313893/workspace/personal-workspace/collection/32292596-6b80d693-b0ab-42cf-9bdc-2f0a92fe7e0e?action=share&creator=32292596",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,5 +11,14 @@
   "dependencies": {
     "express": "^4.18.2",
     "mongodb": "^6.3.0"
-  }
+  },
+  "keywords": [],
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/piyushp-zluri/zluri-onboarding-project-backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/piyushp-zluri/zluri-onboarding-project-backend/issues"
+  },
+  "homepage": "https://github.com/piyushp-zluri/zluri-onboarding-project-backend#readme"
 }

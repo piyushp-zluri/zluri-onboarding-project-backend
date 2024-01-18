@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 
 const app = express();
 const port = 3000;
@@ -24,7 +24,7 @@ connectToDatabase();
 const db = client.db();
 const collection = db.collection('transactions');
 
-app.post('/api/add', async (req, res) => {
+app.post('/api/transactions', async (req, res) => {
     try {
         const { body } = req;
         /*
@@ -51,12 +51,12 @@ app.post('/api/add', async (req, res) => {
     }
 });
 
-app.get('/api/view', async (req, res) => {
+app.get('/api/transactions', async (req, res) => {
     try {
         const { page = 1, pageSize = 30, Description, Date, Amount, Currency } = req.query;
         const skip = (page - 1) * pageSize; //Even though page and pageSize are strings, their numerical meaning is considered when arithmetic operations are performed on them. For ex., '30' is treated as 30. Called type coersion
 
-        const filter = {};
+        let filter = {};
         if (Description)
             filter.Description = Description;
         if (Date)
@@ -66,10 +66,41 @@ app.get('/api/view', async (req, res) => {
         if (Currency)
             filter.Currency = Currency;
 
-        const documents = await collection.find(query).skip(skip).limit(Number(pageSize)).toArray();
+        const documents = await collection.find(filter).skip(skip).limit(Number(pageSize)).toArray();
         res.json(documents);
     } catch (error) {
         console.error('Error retrieving documents:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.delete('/api/transactions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await collection.deleteOne({ _id: new ObjectId(id) });
+        if (result.deletedCount > 0) {
+            res.json({ message: 'Document deleted successfully' });
+        } else {
+            res.status(404).json({ error: 'Document not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting document:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+app.put('/api/transactions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { body } = req;
+        const result = await collection.updateOne({ _id: new ObjectId(id) }, { $set: body });
+        if (result.modifiedCount > 0) {
+            res.json({ message: 'Document updated successfully' });
+        } else {
+            res.status(404).json({ error: 'Document not found' });
+        }
+    } catch (error) {
+        console.error('Error updating document:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
