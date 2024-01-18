@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scroll-Based Pagination</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Scroll-Based Pagination</h1>
+
+    <div id="results">
+        <!-- Display paginated results here -->
+    </div>
+
+    <script>
+        let currentPage = 1;
+        let loading = false;
+
+        async function loadNextPage() {
+            if (loading) return;
+
+            loading = true;
+
+            const pageSize = 10; // Set the desired page size
+            const url = `http://172.30.153.213:3000/api/view?page=${currentPage}&pageSize=${pageSize}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                // Append the results to the results container
+                displayResults(data);
+
+                // Increment the current page for the next request
+                currentPage++;
+            } catch (error) {
+                console.error('Error fetching data:', error);
+            } finally {
+                loading = false;
+            }
+        }
+
+        function displayResults(results) {
+            const resultsContainer = document.getElementById('results');
+
+            // Display results
+            results.forEach(result => {
+                const resultElement = document.createElement('div');
+
+                resultElement.innerHTML = `
+                    <div>
+                        <strong>Date:</strong> ${result.Date}<br>
+                        <strong>Description:</strong> ${result.Description}<br>
+                        <strong>Amount:</strong> ${result.Amount.toFixed(2)}<br>
+                        <strong>Currency:</strong> ${result.Currency}
+                    </div>
+                    <hr>
+                `;
+
+                resultsContainer.appendChild(resultElement);
+            });
+        }
+
+        // Trigger loadNextPage when the user scrolls to the bottom
+        window.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+
+            if (scrollTop + clientHeight >= scrollHeight - 10) {
+                loadNextPage();
+            }
+        });
+
+        // Initial load when the page is loaded
+        loadNextPage();
+    </script>
+</body>
+
+</html>
