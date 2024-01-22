@@ -34,7 +34,7 @@
             loading = true;
 
             const pageSize = 10; // Set the desired page size
-            const url = `http://172.30.153.213:3000/api/view?page=${currentPage}&pageSize=${pageSize}`;
+            const url = `http://172.30.153.213:3000/api/transactions?page=${currentPage}&pageSize=${pageSize}`;
 
             try {
                 const response = await fetch(url);
