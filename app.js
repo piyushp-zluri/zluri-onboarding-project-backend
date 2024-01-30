@@ -4,6 +4,8 @@ const multer = require("multer");
 const axios = require("axios");
 const moment = require("moment");
 const currencyCodes = require("currency-codes");
+const { default: Decimal } = require("decimal.js");
+const e = require("express");
 
 const app = express();
 const port = 3000;
@@ -26,6 +28,7 @@ const transactionSchema = new mongoose.Schema(
     Description: String,
     Amount: mongoose.Types.Decimal128,
     Currency: String,
+    amountInINR: mongoose.Types.Decimal128,
   },
   { versionKey: false }
 );
@@ -43,26 +46,39 @@ function isValidCurrency(currency) {
   return currencyCodes.codes().includes(currency);
 }
 
-const exchangeRateCache = new Map();
+let conversionRates;
+
+async function exchangeRates() {
+  try {
+    const response = await axios.get(
+      `https://v6.exchangerate-api.com/v6/d0a205ebbecfb1dec02eafb7/latest/INR`
+    );
+    const jsonResponse = response.data;
+    if ("conversion_rates" in response.data) {
+      const conversionRates = jsonResponse.conversion_rates;
+      console.log(conversionRates);
+    }
+  } catch (error) {
+    console.error("Error fetching all exchange rates:", error.message);
+    return null;
+  }
+}
 
 async function getExchangeRatesWithINR(currency) {
-  if (exchangeRateCache.size === 0) {
+  if (!conversionRates || Object.keys(conversionRates).length === 0) {
     try {
       const response = await axios.get(
-        `https://v6.exchangerate-api.com/v6/a5c66f15ad9c15fcb2f36abb/latest/INR`
+        `https://v6.exchangerate-api.com/v6/d0a205ebbecfb1dec02eafb7/latest/INR`
       );
-      const conversionRates = response.data.conversion_rates;
-      for (const [curr, rate] of Object.entries(conversionRates)) {
-        exchangeRateCache.set(curr, rate);
-      }
+      conversionRates = response.data.conversion_rates;
     } catch (error) {
       console.error("Error fetching all exchange rates:", error.message);
       return null;
     }
   }
 
-  if (exchangeRateCache.has(currency)) {
-    return exchangeRateCache.get(currency);
+  if (currency in conversionRates) {
+    return conversionRates[currency];
   } else {
     console.error(`Exchange rate for ${currency} not found.`);
     return null;
@@ -73,7 +89,7 @@ async function convertToINR(currency, amount) {
   const exchangeRate = await getExchangeRatesWithINR(currency);
 
   if (exchangeRate !== null) {
-    const amountInINR = parseFloat(amount) * exchangeRate;
+    const amountInINR = parseFloat(amount) / exchangeRate;
     return amountInINR;
   } else {
     console.error(
@@ -82,6 +98,8 @@ async function convertToINR(currency, amount) {
     return null;
   }
 }
+
+convertToINR("GBP", 1);
 
 app.post("/api/transactions", async (req, res) => {
   try {
@@ -104,14 +122,25 @@ app.post("/api/transactions", async (req, res) => {
       ],
       true
     );
-    const transaction = new Transaction({
-      Date: formattedDate,
-      Description: Description,
-      Amount: mongoose.Types.Decimal128.fromString(Amount.toString()),
-      Currency: Currency,
-    });
-    const result = await transaction.save();
-    res.json({ _id: result._id });
+    if (
+      !isNaN(parseFloat(Amount)) &&
+      parseFloat(Amount) > 0 &&
+      isValidCurrency(Currency)
+    ) {
+      const amountInINR = await convertToINR(Currency, Amount);
+      const roundedAmount = new Decimal(amountInINR).toFixed(2);
+      const transaction = new Transaction({
+        Date: formattedDate,
+        Description: Description,
+        Amount: mongoose.Types.Decimal128.fromString(Amount.toString()),
+        Currency: Currency,
+        amountInINR: mongoose.Types.Decimal128.fromString(
+          roundedAmount.toString()
+        ),
+      });
+      const result = await transaction.save();
+      res.json({ _id: result._id });
+    }
   } catch (error) {
     console.error("Error creating document:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -234,6 +263,16 @@ app.put("/api/transactions/:id", async (req, res) => {
       const result = await Transaction.findByIdAndUpdate(id, { $set: body });
       if (result) {
         res.json({ message: "Document updated successfully" });
+        const document = await Transaction.findById(id).lean().exec();
+        const amountInINR = await convertToINR(
+          document.Currency,
+          document.Amount
+        );
+        let roundedAmount = new Decimal(amountInINR).toFixed(2);
+        roundedAmount = mongoose.Types.Decimal128.fromString(roundedAmount);
+        await Transaction.findByIdAndUpdate(id, {
+          $set: { amountInINR: roundedAmount },
+        });
       } else {
         res.status(404).json({ error: "Document not found" });
       }
@@ -258,57 +297,59 @@ app.post(
       const transactions = [];
       const invalidTransactions = [];
 
-      req.file.buffer
+      for (const line of req.file.buffer
         .toString("utf8")
         .split("\n")
-        .slice(1)
-        .forEach((line) => {
-          const [rawDate, Description, Amount, Currency] = line
-            .trim()
-            .split(",");
-          const formattedDate = moment(
-            rawDate,
-            [
-              "DD-MM-YYYY",
-              "MM-DD-YYYY",
-              "DD.MM.YYYY",
-              "MM.DD.YYYY",
-              "DD/MM/YYYY",
-              "MM/DD/YYYY",
-              "YYYY-MM-DD",
-              "YYYY.MM.DD",
-              "YYYY/MM/DD",
-              "YYYY-DD-MM",
-              "YYYY.DD.MM",
-              "YYYY/DD/MM",
-            ],
-            true
-          );
-          if (
-            isValidDate(formattedDate) &&
-            Description.trim() !== "" &&
-            !isNaN(parseFloat(Amount)) &&
-            parseFloat(Amount) > 0 &&
-            isValidCurrency(Currency)
-          ) {
-            transactions.push({
-              Date: formattedDate,
-              Description,
-              Amount:
-                Amount !== undefined
-                  ? mongoose.Types.Decimal128.fromString(Amount.toString())
-                  : undefined,
-              Currency,
-            });
-          } else {
-            invalidTransactions.push({
-              Date: rawDate,
-              Description,
-              Amount,
-              Currency,
-            });
-          }
-        });
+        .slice(1)) {
+        const [rawDate, Description, Amount, Currency] = line.trim().split(",");
+        const formattedDate = moment(
+          rawDate,
+          [
+            "DD-MM-YYYY",
+            "MM-DD-YYYY",
+            "DD.MM.YYYY",
+            "MM.DD.YYYY",
+            "DD/MM/YYYY",
+            "MM/DD/YYYY",
+            "YYYY-MM-DD",
+            "YYYY.MM.DD",
+            "YYYY/MM/DD",
+            "YYYY-DD-MM",
+            "YYYY.DD.MM",
+            "YYYY/DD/MM",
+          ],
+          true
+        );
+        if (
+          isValidDate(formattedDate) &&
+          Description.trim() !== "" &&
+          !isNaN(parseFloat(Amount)) &&
+          parseFloat(Amount) > 0 &&
+          isValidCurrency(Currency)
+        ) {
+          const amountInINR = await convertToINR(Currency, Amount);
+          const roundedAmount = new Decimal(amountInINR).toFixed(2);
+          transactions.push({
+            Date: formattedDate,
+            Description,
+            Amount:
+              Amount !== undefined
+                ? mongoose.Types.Decimal128.fromString(Amount.toString())
+                : undefined,
+            Currency,
+            amountInINR: mongoose.Types.Decimal128.fromString(
+              roundedAmount.toString()
+            ),
+          });
+        } else {
+          invalidTransactions.push({
+            Date: rawDate,
+            Description,
+            Amount,
+            Currency,
+          });
+        }
+      }
 
       for (const transaction of transactions) {
         const parsedData = new Transaction(transaction);
