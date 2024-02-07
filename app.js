@@ -5,7 +5,7 @@ const axios = require("axios");
 const moment = require("moment");
 const currencyCodes = require("currency-codes");
 const { default: Decimal } = require("decimal.js");
-const e = require("express");
+require("dotenv").config();
 
 const app = express();
 const port = 3000;
@@ -13,7 +13,7 @@ const port = 3000;
 app.use(express.json());
 
 mongoose.connect(
-  "mongodb+srv://piyush_zluri:piyush%401234@cluster0.fqocxgk.mongodb.net/transProjDB?retryWrites=true&w=majority"
+  `mongodb+srv://${process.env.MONGODB_USERNAME}:${process.env.MONGODB_PASSWORD}@cluster0.fqocxgk.mongodb.net/transProjDB?retryWrites=true&w=majority`
 );
 const db = mongoose.connection;
 
@@ -51,7 +51,7 @@ let conversionRates;
 async function exchangeRates() {
   try {
     const response = await axios.get(
-      `https://v6.exchangerate-api.com/v6/d0a205ebbecfb1dec02eafb7/latest/INR`
+      `https://v6.exchangerate-api.com/v6/${process.env.EXCHANGE_RATE_API_KEY}/latest/INR`
     );
     const jsonResponse = response.data;
     if ("conversion_rates" in response.data) {
@@ -68,7 +68,7 @@ async function getExchangeRatesWithINR(currency) {
   if (!conversionRates || Object.keys(conversionRates).length === 0) {
     try {
       const response = await axios.get(
-        `https://v6.exchangerate-api.com/v6/d0a205ebbecfb1dec02eafb7/latest/INR`
+        `https://v6.exchangerate-api.com/v6/${process.env.EXCHANGE_RATE_API_KEY}/latest/INR`
       );
       conversionRates = response.data.conversion_rates;
     } catch (error) {
