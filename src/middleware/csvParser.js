@@ -18,14 +18,9 @@ const parseCSV = async (req, res, next) => {
     req.parsedTransactions.push({
       Date: formattedDate,
       Description,
-      Amount:
-        Amount !== undefined
-          ? mongoose.Types.Decimal128.fromString(Amount.toString())
-          : undefined,
+      Amount: Amount.toString(),
       Currency,
-      amountInINR: mongoose.Types.Decimal128.fromString(
-        roundedAmount.toString()
-      ),
+      amountInINR: roundedAmount.toString(),
     });
   }
   next();
