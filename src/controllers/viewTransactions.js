@@ -1,7 +1,9 @@
 const queryBulk = require("../services/queryBulk");
+const mongoose = require("mongoose");
 const formatDate = require("../middleware/dateFormatter");
+const { AppError } = require("../errors/customErrors");
 
-async function viewTransactions(req, res) {
+async function viewTransactions(req, res, next) {
   try {
     const {
       page = 1,
@@ -22,8 +24,13 @@ async function viewTransactions(req, res) {
     const documents = await queryBulk(filter, skip, pageSize);
     res.json(documents);
   } catch (error) {
-    console.error("Error retrieving documents:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    const customError = new AppError(
+      "MONGO_ERROR",
+      "Error retrieving documents",
+      500,
+      error
+    );
+    next(customError);
   }
 }
 

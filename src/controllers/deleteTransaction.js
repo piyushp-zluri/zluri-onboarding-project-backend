@@ -1,11 +1,12 @@
+const deleteByID = require("../services/deleteByID");
 const mongoose = require("mongoose");
-const Transaction = require("../models/mongoSchema");
+const { AppError } = require("../errors/customErrors");
 
-async function deleteTransaction(req, res) {
+async function deleteTransaction(req, res, next) {
   try {
     const { id } = req.params;
     if (mongoose.Types.ObjectId.isValid(id)) {
-      const result = await Transaction.findByIdAndDelete(id);
+      const result = await deleteByID(id);
       if (result) {
         res.json({ message: "Document deleted successfully" });
       } else {
@@ -15,8 +16,13 @@ async function deleteTransaction(req, res) {
       res.status(400).json({ error: "Invalid ObjectId" });
     }
   } catch (error) {
-    console.error("Error deleting document:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    const customError = new AppError(
+      "MONGO_ERROR",
+      "Error deleting document",
+      500,
+      error
+    );
+    next(customError);
   }
 }
 

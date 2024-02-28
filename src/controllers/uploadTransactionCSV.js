@@ -1,26 +1,22 @@
 const saveTransaction = require("../services/saveTransaction");
+const { AppError } = require("../errors/customErrors");
 
-async function uploadTransactionCSV(req, res) {
+async function uploadTransactionCSV(req, res, next) {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No CSV file uploaded." });
-    }
-
-    if (req.parsedTransactions.length !== req.validTransactions.length) {
-      return res.status(400).json({
-        error: "Some transactions are invalid.",
-      });
-    } else {
-      for (const transaction of req.validTransactions) {
-        await saveTransaction(transaction);
-      }
-      res.status(200).json({
-        message: "All transactions successfully inserted into MongoDB",
-      });
-    }
+    await Promise.all(
+      req.validTransactions.map((transaction) => saveTransaction(transaction))
+    );
+    res.status(200).json({
+      message: "All transactions successfully inserted into MongoDB",
+    });
   } catch (error) {
-    console.error("Error uploading CSV file:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    const customError = new AppError(
+      "MONGO_ERROR",
+      "Error uploading CSV file",
+      500,
+      error
+    );
+    next(customError);
   }
 }
 

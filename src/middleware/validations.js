@@ -1,4 +1,5 @@
 const currencyCodes = require("currency-codes");
+const { ValidationError } = require("../errors/customErrors");
 
 function isValidDate(date) {
   return date < new Date();
@@ -20,6 +21,16 @@ const validateTransactions = (req, res, next) => {
       isValidAmount(transaction.Amount) &&
       isValidCurrency(transaction.Currency)
   );
+
+  if (req.parsedTransactions.length !== req.validTransactions.length) {
+    const validationError = new ValidationError(
+      "VALIDATION_ERROR",
+      "Some transactions are invalid",
+      400
+    );
+    return next(validationError);
+  }
+
   next();
 };
 

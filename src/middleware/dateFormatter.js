@@ -1,6 +1,6 @@
 const moment = require("moment");
 
-function formatDate(rawDate) {
+function formatDate(date) {
   const supportedFormats = [
     "DD-MM-YYYY",
     "MM-DD-YYYY",
@@ -16,7 +16,7 @@ function formatDate(rawDate) {
     "YYYY/DD/MM",
   ];
 
-  return moment(rawDate, supportedFormats, true);
+  return moment(date, supportedFormats, true);
 }
 
 module.exports = formatDate;

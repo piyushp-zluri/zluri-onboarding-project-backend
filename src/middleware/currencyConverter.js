@@ -1,9 +1,10 @@
 const axios = require("axios");
+const { ExternalAPIError } = require("../errors/customErrors");
 require("dotenv").config();
 
 let conversionRates;
 
-async function getExchangeRatesWithINR(currency) {
+async function getExchangeRatesWithINR(next) {
   try {
     if (!conversionRates || Object.keys(conversionRates).length === 0) {
       const response = await axios.get(
@@ -12,39 +13,41 @@ async function getExchangeRatesWithINR(currency) {
 
       if (response.status !== 200) {
         throw new Error(
-          `Failed to fetch exchange rates. Status: ${response.status}`
+          `Could not fetch exchange rates. Status: ${response.status}`
         );
       }
 
       conversionRates = response.data.conversion_rates;
     }
+  } catch (error) {
+    const apiError = new ExternalAPIError(
+      "EXTERNAL_API_ERROR",
+      "Error fetching exchange rates",
+      500,
+      error
+    );
+    next(apiError);
+  }
+}
 
+function convertToINR(currency, amount, next) {
+  try {
     if (currency in conversionRates) {
-      return conversionRates[currency];
+      const exchangeRate = conversionRates[currency];
+
+      const amountInINR = parseFloat(amount) / exchangeRate;
+      return amountInINR;
     } else {
       throw new Error(`Exchange rate for ${currency} not found.`);
     }
   } catch (error) {
-    console.error(`Error fetching exchange rates: ${error.message}`);
-    throw error;
-  }
-}
-
-async function convertToINR(currency, amount) {
-  try {
-    const exchangeRate = await getExchangeRatesWithINR(currency);
-
-    if (exchangeRate !== null) {
-      const amountInINR = parseFloat(amount) / exchangeRate;
-      return amountInINR;
-    } else {
-      throw new Error(
-        `Cannot convert ${amount} ${currency} to INR. Exchange rate not available.`
-      );
-    }
-  } catch (error) {
-    console.error(`Error converting to INR: ${error.message}`);
-    return 0;
+    const apiError = new ExternalAPIError(
+      "EXTERNAL_API_ERROR",
+      "Error converting to INR",
+      500,
+      error
+    );
+    next(apiError);
   }
 }
 

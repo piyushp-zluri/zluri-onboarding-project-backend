@@ -1,30 +1,31 @@
 const saveTransaction = require("../services/saveTransaction");
 const formatDate = require("../middleware/dateFormatter");
-const { isValidAmount, isValidCurrency } = require("../middleware/validations");
-const { convertToINR } = require("../middleware/currencyConverter");
-const { default: Decimal } = require("decimal.js");
+const { AppError } = require("../errors/customErrors");
 
-async function addTransaction(req, res) {
+async function addTransaction(req, res, next) {
   try {
     const { rawDate, Description, Amount, Currency } = req.body;
-    const Date = formatDate(rawDate);
-    if (isValidAmount(Amount) && isValidCurrency(Currency)) {
-      const INRAmount = await convertToINR(Currency, Amount);
-      const roundedAmount = new Decimal(INRAmount).toFixed(2);
+    const formattedDate = formatDate(rawDate);
 
-      const result = await saveTransaction({
-        Date,
+    await saveTransaction(
+      {
+        Date: formattedDate,
         Description,
-        Amount: Amount.toString(),
+        Amount,
         Currency,
-        amountInINR: roundedAmount.toString(),
-      });
+      },
+      next
+    );
 
-      res.json({ _id: result._id });
-    }
+    res.json({ message: "Document added successfully" });
   } catch (error) {
-    console.error("Error creating document:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    const customError = new AppError(
+      "MONGO_ERROR",
+      "Error creating document",
+      500,
+      error
+    );
+    next(customError);
   }
 }
 
